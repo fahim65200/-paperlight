@@ -38,7 +38,7 @@ tr.sub td:nth-child(2){padding-left:24px}
         <strong>Choose your manuscript</strong>
         <span>Word (.docx), or drag it here</span>
       </label>
-      <div class="file" id="fileRow"><div class="name" id="fileName"></div><div class="size" id="fileSize"></div><button class="linkbtn" id="change" type="button">Change</button></div>
+      <div class="file" id="fileRow"><div class="name" id="fileName"></div><div class="size" id="fileSize"></div><button class="linkbtn" id="change" type="button">Change</button><button class="xbtn" id="remove" type="button" aria-label="Remove file" title="Remove file">×</button></div>
     </div>
     <div id="p-paste" role="tabpanel" aria-labelledby="t-paste" hidden>
       <label for="paste" class="help" style="display:block">Paste your paper, keeping each heading on its own line.</label>
@@ -86,6 +86,7 @@ PL.wireDrop($("#drop"), $("#pick"), files => {
   $("#fileName").textContent = f.name; $("#fileSize").textContent = PL.fmt(f.size); refresh();
 });
 $("#change").addEventListener("click", () => $("#pick").click());
+$("#remove").addEventListener("click", () => { file = null; $("#fileRow").classList.remove("show"); $("#drop").style.display = ""; $("#report").hidden = true; $("#err").textContent = ""; refresh(); });
 
 const CATS = [
   ["front", "Title page (title, authors, affiliations)", false],

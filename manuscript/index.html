@@ -46,6 +46,8 @@ h1{font:700 clamp(38px,8vw,60px)/1 "Bricolage Grotesque","IBM Plex Sans",system-
 .file.show{display:flex}
 .file .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .file .size{color:var(--muted);font-size:14px;white-space:nowrap}
+.xbtn{appearance:none;border:0;background:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}
+.xbtn:hover{color:var(--ink);background:var(--paper)}
 .linkbtn{appearance:none;border:0;background:none;color:var(--accent);font:500 14px/1 "IBM Plex Sans",system-ui,sans-serif;cursor:pointer;padding:6px}
 .field{margin-top:22px}
 .field > label, .field > .lbl{display:block;font-weight:600;margin-bottom:6px}
@@ -104,7 +106,7 @@ textarea{min-height:120px;resize:vertical}
       <strong>Choose a manuscript</strong>
       <span>Word (.docx) or PDF, or drag it here</span>
     </label>
-    <div class="file" id="aRow"><div class="name" id="aName"></div><div class="size" id="aSize"></div><button class="linkbtn" id="aChange" type="button">Change</button></div>
+    <div class="file" id="aRow"><div class="name" id="aName"></div><div class="size" id="aSize"></div><button class="linkbtn" id="aChange" type="button">Change</button><button class="xbtn" id="aRemove" type="button" aria-label="Remove file" title="Remove file">×</button></div>
 
     <div class="field">
       <label for="aTerms">Names and details to hide</label>
@@ -135,7 +137,7 @@ textarea{min-height:120px;resize:vertical}
       <strong>Choose your PDF</strong>
       <span>or drag it here</span>
     </label>
-    <div class="file" id="cRow"><div class="name" id="cName"></div><div class="size" id="cSize"></div><button class="linkbtn" id="cChange" type="button">Change</button></div>
+    <div class="file" id="cRow"><div class="name" id="cName"></div><div class="size" id="cSize"></div><button class="linkbtn" id="cChange" type="button">Change</button><button class="xbtn" id="cRemove" type="button" aria-label="Remove file" title="Remove file">×</button></div>
 
     <div class="field">
       <span class="lbl">Requirements</span>
@@ -233,6 +235,8 @@ function showFile(prefix, f){
   $("#" + prefix + "Pick").value = "";
 }
 
+$("#aRemove").addEventListener("click", () => { A.file = null; A.out = null; showFile("a", null); $("#aGo").disabled = true; $("#aReport").hidden = true; $("#aSuggest").innerHTML = ""; $("#aErr").textContent = ""; });
+$("#cRemove").addEventListener("click", () => { C.file = null; showFile("c", null); $("#cGo").disabled = true; $("#cReport").hidden = true; $("#cErr").textContent = ""; });
 // tabs
 document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll(".tabs button").forEach(x => {

@@ -46,6 +46,8 @@ h1{font:700 clamp(44px,9vw,72px)/0.95 "Bricolage Grotesque","IBM Plex Sans",syst
 .file{display:none;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
 .file.show{display:flex}
 .file .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.xbtn{appearance:none;border:0;background:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}
+.xbtn:hover{color:var(--ink);background:var(--paper)}
 .file .size{color:var(--muted);font-size:14px;white-space:nowrap}
 .linkbtn{appearance:none;border:0;background:none;color:var(--accent);font:500 14px/1 inherit;font-family:inherit;cursor:pointer;padding:6px}
 fieldset{border:0;margin:22px 0 0;padding:0}
@@ -110,7 +112,7 @@ legend{font-weight:600;margin-bottom:10px;padding:0}
     <div class="file" id="fileRow">
       <div class="name" id="fileName"></div>
       <div class="size" id="fileSize"></div>
-      <button class="linkbtn" id="changeBtn" type="button">Change</button>
+      <button class="linkbtn" id="changeBtn" type="button">Change</button><button class="xbtn" id="removeBtn" type="button" aria-label="Remove file" title="Remove file">×</button>
     </div>
 
     <fieldset id="opts"><legend id="optsLegend"></legend><div class="chips" id="chips"></div><p class="hint" id="hint"></p></fieldset>
@@ -135,7 +137,7 @@ legend{font-weight:600;margin-bottom:10px;padding:0}
   <section class="notes">
     <h3>What to expect</h3>
     <p><b>Compress PDF.</b> Light mode tidies the file's structure and keeps text selectable, but often saves little. Balanced and Smallest redraw each page as an image, which shrinks scanned and photo-heavy PDFs a lot, but the text can no longer be selected or searched.</p>
-    <p><b>PDF to Word.</b> Editable text mode rebuilds paragraphs from the PDF's text. Tables, columns and exact layout are simplified. Scanned pages have no text to extract, so they are added as pictures. PDFs made with older Bangla fonts (such as SutonnyMJ) may come out as garbled characters.</p>
+    <p><b>PDF to Word.</b> Editable mode keeps fonts, sizes, colours and alignment where it can. Pictures, shapes, table borders and coloured backgrounds are not carried over, and complex layouts like columns are simplified. Exact look keeps everything but as pictures. Scanned pages have no text to extract, so they are added as pictures. PDFs made with older Bangla fonts (such as SutonnyMJ) may come out as garbled characters.</p>
     <p><b>Word to PDF.</b> Works with .docx files (not the older .doc format). Headings, lists, tables and images are kept; custom fonts, headers, footers and page numbers are not. Pages are saved as images, so text in the PDF is not selectable.</p>
   </section>
 </main>
@@ -190,8 +192,8 @@ const TOOLS = {
     accept: ".pdf,application/pdf", title: "Choose a PDF", action: "Convert to Word", legend: "What matters more",
     def: "text",
     options: [
-      { id: "text", label: "Editable text", hint: "Text you can edit. Layout, tables and columns are simplified." },
-      { id: "image", label: "Exact look", hint: "Each page goes into Word as a picture. Looks identical, but the text is not editable." }
+      { id: "text", label: "Editable", hint: "Keeps fonts, sizes, colours and alignment where possible, as text you can edit. Pictures, shapes and table borders are not carried over." },
+      { id: "image", label: "Exact look", hint: "Each page goes into Word as a picture, so it looks identical, including images and colours. The text is not editable." }
     ]
   },
   word2pdf: {
@@ -276,6 +278,7 @@ const drop = $("#drop");
 ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
 drop.addEventListener("drop", e => acceptFile(e.dataTransfer.files[0]));
+$("#removeBtn").addEventListener("click", () => { if (!state.busy){ setFile(null); clearResult(); } });
 $("#againBtn").addEventListener("click", () => { setFile(null); clearResult(); });
 $("#dlBtn").addEventListener("click", async () => {
   if (!state.out) return;
@@ -381,11 +384,42 @@ async function doCompress(buf, level){
 }
 
 // ---------- PDF to Word ----------
+const FONT_MAP = { helvetica: "Arial", arial: "Arial", arialmt: "Arial", times: "Times New Roman", timesroman: "Times New Roman", timesnewroman: "Times New Roman", timesnewromanps: "Times New Roman", courier: "Courier New", couriernew: "Courier New", symbol: "Symbol", calibri: "Calibri", cambria: "Cambria", georgia: "Georgia", verdana: "Verdana", tahoma: "Tahoma", segoeui: "Segoe UI", garamond: "Garamond", bookantiqua: "Book Antiqua", centurygothic: "Century Gothic", trebuchetms: "Trebuchet MS", palatinolinotype: "Palatino Linotype", aptos: "Aptos", carlito: "Calibri", caladea: "Cambria", liberationsans: "Arial", liberationserif: "Times New Roman", liberationmono: "Courier New", arimo: "Arial", tinos: "Times New Roman", cousine: "Courier New", nimbussans: "Arial", nimbusroman: "Times New Roman" };
+function cleanFont(o){
+  const raw = (o && o.name ? o.name : "").replace(/^[A-Z]{6}\+/, "");
+  const [base, ...rest] = raw.split(/[-,]/);
+  const style = rest.join(" ");
+  let fam = base.replace(/(PSMT|PS|MT|Std|Pro)$/,"");
+  const key = fam.toLowerCase().replace(/[^a-z]/g, "");
+  fam = FONT_MAP[key] || fam.replace(/([a-z])([A-Z])/g, "$1 $2").trim();
+  if (!fam || /^(g_|f\d|t\d|tt\d)/i.test(fam)) fam = (o && o.fallbackName === "serif") ? "Times New Roman" : (o && o.fallbackName === "monospace") ? "Courier New" : "Arial";
+  const bold = !!(o && (o.bold || o.black)) || /bold|black|heavy|semibold|demi/i.test(style + " " + base);
+  const italic = !!(o && o.italic) || /italic|oblique/i.test(style + " " + base);
+  return { family: fam, bold, italic };
+}
+// Read the text colour from the rendered page: the pixels that differ most from the local background.
+function sampleColor(ctx, cw, ch, x0, y0, x1, y1){
+  x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(cw, Math.ceil(x1)); y1 = Math.min(ch, Math.ceil(y1));
+  const w = x1 - x0, h = y1 - y0; if (w < 2 || h < 2) return "000000";
+  const d = ctx.getImageData(x0, y0, w, h).data;
+  const step = Math.max(1, Math.floor(Math.sqrt(w * h / 900)));
+  const px = [], hist = new Map();
+  for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step){
+    const i = (y * w + x) * 4, c = [d[i], d[i+1], d[i+2]]; px.push(c);
+    const k = (c[0] >> 4) << 8 | (c[1] >> 4) << 4 | (c[2] >> 4); hist.set(k, (hist.get(k) || 0) + 1);
+  }
+  let bk = 0, bn = -1; hist.forEach((n, k) => { if (n > bn){ bn = n; bk = k; } });
+  const bg = [((bk >> 8) & 15) * 16 + 8, ((bk >> 4) & 15) * 16 + 8, (bk & 15) * 16 + 8];
+  const dist = c => Math.abs(c[0]-bg[0]) + Math.abs(c[1]-bg[1]) + Math.abs(c[2]-bg[2]);
+  let max = 0; px.forEach(c => max = Math.max(max, dist(c)));
+  if (max < 60) return "000000";
+  const core = px.filter(c => dist(c) >= max * 0.8);
+  const avg = [0,1,2].map(j => Math.round(core.reduce((a, c) => a + c[j], 0) / core.length));
+  if (avg[0] < 70 && avg[1] < 70 && avg[2] < 70 && Math.max(...avg) - Math.min(...avg) < 25) return "000000";
+  return avg.map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+}
 function buildLines(items){
-  const its = items.filter(i => typeof i.str === "string" && i.str.length).map(i => ({
-    s: i.str, x: i.transform[4], y: i.transform[5],
-    fs: Math.hypot(i.transform[2], i.transform[3]) || i.height || 10, w: i.width || 0
-  })).sort((a, b) => (b.y - a.y) || (a.x - b.x));
+  const its = items.filter(i => i.s.length).sort((a, b) => (b.y - a.y) || (a.x - b.x));
   const lines = [];
   for (const it of its){
     const L = lines[lines.length - 1];
@@ -394,103 +428,179 @@ function buildLines(items){
   }
   for (const L of lines){
     L.items.sort((a, b) => a.x - b.x);
-    let t = "";
+    const runs = [];
     L.items.forEach((it, k) => {
+      let pre = "";
       if (k){
         const p = L.items[k - 1], gap = it.x - (p.x + p.w);
-        if (gap > p.fs * 2) t += "\t";
-        else if (gap > p.fs * 0.15 && !t.endsWith(" ") && !it.s.startsWith(" ")) t += " ";
+        if (gap > p.fs * 2) pre = "\t";
+        else if (gap > p.fs * 0.15 && !/\s$/.test(p.s) && !/^\s/.test(it.s)) pre = " ".repeat(Math.max(1, Math.min(10, Math.round(gap / (p.fs * 0.26)))));
       }
-      t += it.s;
+      const key = [it.font.family, it.font.bold, it.font.italic, it.color, Math.round(it.fs * 2)].join("|");
+      const last = runs[runs.length - 1];
+      if (last && last.key === key) last.text += pre + it.s;
+      else { if (pre && last) last.text += pre; runs.push({ key, text: it.s, font: it.font, color: it.color, size: Math.round(Math.max(4, Math.min(96, it.fs)) * 2) }); }
     });
-    L.text = t.replace(/\s+$/, "");
+    if (runs.length) runs[runs.length - 1].text = runs[runs.length - 1].text.replace(/\s+$/, "");
+    L.runs = runs.filter(r => r.text.length);
+    L.text = L.runs.map(r => r.text).join("");
+    L.x0 = Math.min(...L.items.map(i => i.x)); L.x1 = Math.max(...L.items.map(i => i.x + i.w));
   }
   return lines.filter(L => L.text.trim());
 }
-function linesToParas(lines){
-  const paras = [];
-  let cur = null, prev = null;
+function linesToParas(lines, left, right){
+  const paras = []; let cur = null, prev = null;
+  const width = Math.max(1, right - left);
   for (const L of lines){
-    const brk = !cur || (prev.y - L.y) > prev.fs * 1.8 || Math.abs(L.fs - cur.fs) > 1.5;
-    if (brk){ cur = { fs: L.fs, text: L.text }; paras.push(cur); }
-    else {
-      if (/[A-Za-z]-$/.test(cur.text)) cur.text = cur.text.slice(0, -1) + L.text.trimStart();
-      else cur.text += " " + L.text.trimStart();
-    }
+    const gap = prev ? prev.y - L.y : 0;
+    const prevShort = prev && prev.x1 < right - width * 0.15;
+    const brk = !cur || gap > prev.fs * 1.7 || Math.abs(L.fs - cur.fs) > 1.5 || prevShort || L.x0 > prev.x0 + prev.fs * 3;
+    if (brk){ cur = { lines: [L], fs: L.fs, gapBefore: prev ? gap : 0 }; paras.push(cur); }
+    else cur.lines.push(L);
     prev = L;
   }
+  paras.forEach(P => {
+    const Ls = P.lines, first = Ls[0];
+    // runs, joining wrapped lines with a space (or removing a line-end hyphen)
+    const runs = [];
+    Ls.forEach((L, i) => {
+      L.runs.forEach((r, j) => {
+        const t = { ...r };
+        if (i && j === 0){
+          const last = runs[runs.length - 1];
+          if (last && /[A-Za-z]-$/.test(last.text)) last.text = last.text.slice(0, -1); else t.text = " " + t.text.replace(/^\s+/, "");
+        }
+        const last = runs[runs.length - 1];
+        if (last && last.key === t.key) last.text += t.text; else runs.push(t);
+      });
+    });
+    P.runs = runs;
+    const x0 = Math.min(...Ls.map(l => l.x0)), x1 = Math.max(...Ls.map(l => l.x1));
+    const lg = x0 - left, rg = right - x1;
+    const gaps = Ls.slice(1).map((l, i) => Ls[i].y - l.y).sort((a, b) => a - b);
+    P.lineGap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : P.fs * 1.2;
+    if (Ls.length === 1){
+      if (lg > 24 && Math.abs(lg - rg) < Math.max(12, width * 0.03)) P.align = "center";
+      else if (rg < 6 && lg > 60) P.align = "right";
+      else { P.align = "left"; P.indent = lg; }
+    } else {
+      const centered = Ls.every(l => { const a = l.x0 - left, b = right - l.x1; return a > 12 && Math.abs(a - b) < 14; });
+      if (centered) P.align = "center";
+      else {
+        const full = Ls.slice(0, -1).every(l => l.x1 >= right - 10);
+        P.align = full ? "justify" : "left";
+        const rest = Math.min(...Ls.slice(1).map(l => l.x0));
+        P.indent = rest - left; P.firstLine = first.x0 - rest;
+      }
+    }
+  });
   return paras;
+}
+async function readTextPage(page){
+  await page.getOperatorList(); // loads fonts so their real names are available
+  const tc = await page.getTextContent();
+  const vp1 = page.getViewport({ scale: 1 }), S = 2;
+  const { canvas } = await renderPage(page, 72 * S);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const k = canvas.width / vp1.width;
+  const fontCache = {};
+  const items = [];
+  for (const i of tc.items){
+    if (typeof i.str !== "string" || !i.str.length) continue;
+    const fs = Math.hypot(i.transform[2], i.transform[3]) || i.height || 10;
+    if (!(i.fontName in fontCache)){ let o = null; try { o = page.commonObjs.get(i.fontName); } catch(e){} fontCache[i.fontName] = cleanFont(o); }
+    const x = i.transform[4], y = i.transform[5], w = i.width || 0;
+    const [cx0, cy0] = vp1.convertToViewportPoint(x, y + fs * 0.8), [cx1, cy1] = vp1.convertToViewportPoint(x + w, y - fs * 0.15);
+    const color = i.str.trim() ? sampleColor(ctx, canvas.width, canvas.height, Math.min(cx0, cx1) * k, Math.min(cy0, cy1) * k, Math.max(cx0, cx1) * k, Math.max(cy0, cy1) * k) : "000000";
+    items.push({ s: i.str, x, y, fs, w, font: fontCache[i.fontName], color });
+  }
+  canvas.width = canvas.height = 0;
+  return { items, w: vp1.width, h: vp1.height };
 }
 async function doPdfToWord(buf, mode){
   const D = window.docx;
   if (!D) throw new Error("The Word library didn't load. Check your connection and reload the page.");
   const pdf = await openPdf(buf);
   const pages = [];
-  let firstW = 595, firstH = 842;
+  let firstW = 595, firstH = 842, bounds = null;
   for (let i = 1; i <= pdf.numPages; i++){
     setProgress(`Reading page ${i} of ${pdf.numPages}…`, (i - 1) / pdf.numPages * 0.9);
     const page = await pdf.getPage(i);
     const vp = page.getViewport({ scale: 1 });
     if (i === 1){ firstW = vp.width; firstH = vp.height; }
-    let paras = null;
+    let done = false;
     if (mode === "text"){
-      const tc = await page.getTextContent();
-      const lines = buildLines(tc.items);
+      const { items } = await readTextPage(page);
+      const lines = buildLines(items);
       const chars = lines.reduce((n, L) => n + L.text.trim().length, 0);
-      if (chars >= 20) paras = linesToParas(lines);
+      if (chars >= 20){
+        const left = Math.min(...lines.map(l => l.x0)), right = Math.max(...lines.map(l => l.x1));
+        const top = lines[0].y + lines[0].fs;
+        if (!bounds) bounds = { left, right, top, w: vp.width, h: vp.height };
+        pages.push({ kind: "text", paras: linesToParas(lines, left, right), left });
+        done = true;
+      }
     }
-    if (paras) pages.push({ kind: "text", paras });
-    else {
+    if (!done){
       const { canvas, wPt, hPt } = await renderPage(page, 150);
-      const b = await canvasBlob(canvas, 0.82);
+      const b = await canvasBlob(canvas, 0.85);
       pages.push({ kind: "image", data: new Uint8Array(await b.arrayBuffer()), wPt, hPt });
       canvas.width = canvas.height = 0;
     }
     page.cleanup();
   }
   setProgress("Building the Word file…", 0.95);
-  // Body font size = most common size by amount of text
-  const tally = {};
-  pages.forEach(p => p.kind === "text" && p.paras.forEach(q => { const k = Math.round(q.fs); tally[k] = (tally[k] || 0) + q.text.length; }));
-  const body = +(Object.entries(tally).sort((a, b) => b[1] - a[1])[0] || [11])[0] || 11;
-
-  const marginPt = mode === "image" ? 18 : 54;
+  const clampM = v => Math.max(18, Math.min(144, v));
+  const mL = bounds ? clampM(bounds.left) : (mode === "image" ? 18 : 54);
+  const mR = bounds ? clampM(bounds.w - bounds.right) : mL;
+  const mT = bounds ? clampM(bounds.h - bounds.top) : mL;
+  const mB = mode === "image" && !bounds ? 18 : 36;
+  const AL = { center: D.AlignmentType.CENTER, right: D.AlignmentType.RIGHT, justify: D.AlignmentType.JUSTIFIED, left: D.AlignmentType.LEFT };
   const children = [];
   pages.forEach((p, idx) => {
     const pb = idx > 0;
     if (p.kind === "image"){
-      const f = Math.min((p.wPt - 2 * marginPt) / p.wPt, (p.hPt - 2 * marginPt) / p.hPt) * 0.98;
+      const f = Math.min((p.wPt - mL - mR) / p.wPt, (p.hPt - mT - mB) / p.hPt) * 0.98;
       const wPx = Math.round(p.wPt * f * 96 / 72), hPx = Math.round(p.hPt * f * 96 / 72);
       children.push(new D.Paragraph({ pageBreakBefore: pb, children: [new D.ImageRun({ data: p.data, transformation: { width: wPx, height: hPx } })] }));
-    } else {
-      p.paras.forEach((q, k) => {
-        const heading = q.fs >= body * 1.3 && q.text.length < 200;
-        const size = Math.round(Math.max(7, Math.min(36, q.fs)) * 2);
-        const withTabs = [];
-        q.text.split("\t").forEach((seg, j) => {
-          if (j) withTabs.push(new D.TextRun({ children: [new D.Tab()], size }));
-          if (seg) withTabs.push(new D.TextRun({ text: seg, size, bold: heading }));
-        });
-        children.push(new D.Paragraph({ pageBreakBefore: pb && k === 0, spacing: { after: heading ? 160 : 120 }, children: withTabs }));
-      });
+      return;
     }
+    const shift = p.left - (bounds ? bounds.left : p.left);
+    p.paras.forEach((q, k) => {
+      const kids = [];
+      q.runs.forEach(r => r.text.split("\t").forEach((seg, j) => {
+        const st = { size: r.size, bold: r.font.bold, italics: r.font.italic, font: r.font.family, color: r.color };
+        if (j) kids.push(new D.TextRun({ children: [new D.Tab()], ...st }));
+        if (seg) kids.push(new D.TextRun({ text: seg, ...st }));
+      }));
+      const before = k === 0 ? 0 : Math.max(0, q.gapBefore - q.lineGap);
+      const indentLeft = Math.max(0, (q.indent || 0) + shift);
+      children.push(new D.Paragraph({
+        pageBreakBefore: pb && k === 0,
+        alignment: AL[q.align] || D.AlignmentType.LEFT,
+        indent: q.align === "left" || q.align === "justify" ? { left: Math.round(indentLeft * 20), firstLine: q.firstLine > 0 ? Math.round(q.firstLine * 20) : undefined, hanging: q.firstLine < 0 ? Math.round(-q.firstLine * 20) : undefined } : undefined,
+        spacing: { before: Math.round(Math.min(before, 200) * 20), after: 0, line: Math.max(200, Math.round(q.lineGap * 20)), lineRule: D.LineRuleType.AT_LEAST },
+        children: kids
+      }));
+    });
   });
-  const m = Math.round(marginPt * 20);
   const doc = new D.Document({
-    creator: "Folio",
-    styles: { default: { document: { run: { font: "Calibri" } } } },
-    sections: [{ properties: { page: { size: { width: Math.round(firstW * 20), height: Math.round(firstH * 20) }, margin: { top: m, right: m, bottom: m, left: m } } }, children }]
+    creator: "",
+    sections: [{ properties: { page: { size: { width: Math.round(firstW * 20), height: Math.round(firstH * 20) }, margin: { top: Math.round(mT * 20), right: Math.round(mR * 20), bottom: Math.round(mB * 20), left: Math.round(mL * 20) } } }, children }]
   });
   const blob = await D.Packer.toBlob(doc);
   const imgPages = pages.filter(p => p.kind === "image").length;
   const wrap = document.createElement("div");
   wrap.append(sizeLine(`${pdf.numPages} page${pdf.numPages > 1 ? "s" : ""} converted, ${fmt(blob.size)}.`));
   finish(blob, baseName(state.file.name) + ".docx", "Your Word file is ready", wrap);
+  const msg = $("#resultMsg");
   if (mode === "text" && imgPages){
-    const msg = $("#resultMsg");
     msg.textContent = imgPages === pdf.numPages
       ? "No text was found in this PDF (it is probably scanned), so every page was added as a picture. To get editable text from a scan you need OCR software."
       : `${imgPages} page${imgPages > 1 ? "s had" : " had"} no text (probably scanned) and ${imgPages > 1 ? "were" : "was"} added as ${imgPages > 1 ? "pictures" : "a picture"}.`;
+  } else if (mode === "text"){
+    msg.className = "msg ok";
+    msg.textContent = "Fonts, sizes, colours and alignment are kept where possible. Pictures, shapes, table borders and coloured backgrounds are not carried over, so check the file. Choose Exact look if appearance matters more than editing.";
   }
 }
 

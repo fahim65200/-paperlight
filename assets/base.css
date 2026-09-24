@@ -42,6 +42,8 @@ h1{font:700 clamp(36px,7.5vw,56px)/1 "Bricolage Grotesque","IBM Plex Sans",syste
 .file.show{display:flex}
 .file .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .file .size{color:var(--muted);font-size:14px;white-space:nowrap}
+.xbtn{appearance:none;border:0;background:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px}
+.xbtn:hover{color:var(--ink);background:var(--paper)}
 .linkbtn{appearance:none;border:0;background:none;color:var(--accent);font:500 14px/1 "IBM Plex Sans",system-ui,sans-serif;cursor:pointer;padding:6px}
 .field{margin-top:22px}
 .field > label,.field > .lbl{display:block;font-weight:600;margin-bottom:6px}

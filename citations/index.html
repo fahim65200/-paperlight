@@ -33,7 +33,7 @@ summary{cursor:pointer;font-weight:500}
         <strong>Choose your manuscript</strong>
         <span>Word (.docx) with a References section, or drag it here</span>
       </label>
-      <div class="file" id="fileRow"><div class="name" id="fileName"></div><div class="size" id="fileSize"></div><button class="linkbtn" id="change" type="button">Change</button></div>
+      <div class="file" id="fileRow"><div class="name" id="fileName"></div><div class="size" id="fileSize"></div><button class="linkbtn" id="change" type="button">Change</button><button class="xbtn" id="remove" type="button" aria-label="Remove file" title="Remove file">×</button></div>
     </div>
     <div id="p-paste" role="tabpanel" aria-labelledby="t-paste" hidden>
       <div class="field" style="margin-top:0">
@@ -88,6 +88,7 @@ PL.wireDrop($("#drop"), $("#pick"), files => {
   $("#fileName").textContent = f.name; $("#fileSize").textContent = PL.fmt(f.size); refresh();
 });
 $("#change").addEventListener("click", () => $("#pick").click());
+$("#remove").addEventListener("click", () => { file = null; $("#fileRow").classList.remove("show"); $("#drop").style.display = ""; $("#report").hidden = true; $("#err").textContent = ""; refresh(); });
 
 // ---------------- parsing ----------------
 const YEAR = "(?:1[6-9]|20)\\d{2}[a-z]?|n\\.\\s?d\\.|in\\s+press|forthcoming";
